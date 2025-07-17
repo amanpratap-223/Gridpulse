@@ -1,65 +1,67 @@
 import { z } from "zod";
 
 export const formSchema = z.object({
-  SNo: z
-    .string()
-    .min(1, "Serial Number is required")
-    .regex(/^[0-9]+$/, "Serial Number must be numeric"),
-
   substation: z
-    .string()
-    .min(1, "Substation name is required"),
+    .literal(5, {
+      errorMap: () => ({ message: "Only substation 5 is allowed" }),
+    }),
 
   dateOfReading: z
     .string()
-    .min(1, "Date of Reading is required"),
+    .min(1, "Date of Reading is required")
+    .refine((val) => !isNaN(Date.parse(val)), {
+      message: "Please select a valid date",
+    }),
 
   totalUnitConsumed: z
     .string()
     .min(1, "Total Units Consumed is required")
-    .regex(/^[0-9]+$/, "Must be a number"),
+    .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+      message: "Total Units Consumed must be a positive number",
+    }),
 
   temperature: z
     .string()
     .min(1, "Temperature is required")
-    .regex(/^[0-9]+$/, "Must be a number"),
+    .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+      message: "Temperature must be a positive number",
+    }),
 
   transformers: z
     .array(
       z.object({
-        transformerId: z
-          .string()
-          .min(1, "Transformer ID is required"),
-
+        transformerId: z.string().min(1, "Transformer ID is required"),
         voltage: z
           .string()
           .min(1, "Voltage is required")
-          .regex(/^[0-9]+$/, "Must be a number"),
-
+          .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+            message: "Voltage must be a positive number",
+          }),
         current: z
           .string()
           .min(1, "Current is required")
-          .regex(/^[0-9]+$/, "Must be a number"),
-
+          .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+            message: "Current must be a positive number",
+          }),
         power: z
           .string()
           .min(1, "Power is required")
-          .regex(/^[0-9]+$/, "Must be a number")
+          .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+            message: "Power must be a positive number",
+          }),
       })
     )
     .min(1, "At least one transformer is required"),
 
   areas: z.array(
     z.object({
-      name: z
-        .string()
-        .min(1, "Area name is required")
-        .regex(/^[A-Za-z ]+$/, "Only alphabets are allowed"),
-
+      name: z.string().min(1, "Area name is required"),
       power: z
         .string()
         .min(1, "Power consumption is required")
-        .regex(/^[0-9]+$/, "Must be a number")
+        .refine((val) => !isNaN(Number(val)) && Number(val) >= 0, {
+          message: "Power consumption must be a positive number",
+        }),
     })
-  )
+  ),
 });

@@ -1,398 +1,224 @@
-import React from 'react';
-import { DashboardCard } from './dashboard-card';
-import { getTransformerVoltages, getTransformerCurrents, getDailyConsumption, getConsumptionByArea,getTR1SupplyData,getTR2SupplyData,getTRKwhData } from '@/data/energyData';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell } from 'recharts';
+import React, { useEffect, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
-// Custom colors that match our Grid Pulse theme
-const colors = {
-  primary: '#5FB1E8',
-  secondary: '#073E67',
-  tertiary: '#35A2EB',
-  quaternary: '#2E78A0',
-  accent1: '#64D7F7',
-  accent2: '#0891B2',
-  gradientStart: '#073E67',
-  gradientEnd: '#5FB1E8'
+const COLORS = [
+  "#0088FE",
+  "#00C49F",
+  "#FFBB28",
+  "#FF8042",
+  "#AF19FF",
+  "#FF4C4C",
+  "#4CFF72",
+];
+
+// ✅ Fetch chart-friendly power data from backend
+const usePowerData = () => {
+  const [data, setData] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch("http://localhost:3000/power/charts", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const result = await res.json();
+        setData(Array.isArray(result) ? result : []);
+      } catch (err) {
+        console.error("Error fetching chart data:", err);
+      }
+    };
+
+    fetchData();
+    const interval = setInterval(fetchData, 5000); // ✅ refresh every 5s
+    return () => clearInterval(interval);
+  }, []);
+
+  return data;
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="grid-pulse-glass p-2 border border-[#EBEBEB]/40 rounded shadow-lg">
-        <p className="text-sm font-medium text-[#F5FBFE]">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={`item-${index}`} className="text-sm" style={{ color: entry.color }}>
-            {`${entry.name}: ${entry.value}`}
-          </p>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
-export const VoltageChart = () => {
-  const data = getTransformerVoltages();
-
+// ✅ 1. Transformer Voltage Chart
+export const TransformerVoltageChart = () => {
+  const data = usePowerData();
   return (
-    <DashboardCard 
-      title="Transformer Voltages" 
-      description="Daily voltage readings for both transformers"
-      fullHeight
-    >
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Transformer Voltage Over Time
+      </h3>
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart
-          data={data}
-          margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-        >
-          <defs>
-            <linearGradient id="colorTr1" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>  {/* Blue */}
-              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorTr2" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8}/>  {/* Red */}
-              <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-          <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }} 
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            angle={-45}
-            textAnchor="end"
-            height={60}
-          />
-          <YAxis
-            domain={['auto', 'auto']}
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ paddingTop: 15 }} />
-          <Line 
-            type="monotone" 
-            dataKey="tr1Voltage" 
-            name="TR-1 Voltage (V)"
-            stroke='#3B82F6' 
-            strokeWidth={2}
-            dot={{ stroke: colors.primary, strokeWidth: 2, r: 4, fill: 'rgba(0,0,0,0.3)' }}
-            activeDot={{ r: 6, stroke: colors.primary, strokeWidth: 2, fill: colors.primary }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="tr2Voltage" 
-            name="TR-2 Voltage (V)"
-            stroke="#EF4444" 
-            strokeWidth={2}
-            dot={{ stroke: colors.accent1, strokeWidth: 2, r: 4, fill: 'rgba(0,0,0,0.3)' }}
-            activeDot={{ r: 6, stroke: colors.accent1, strokeWidth: 2, fill: colors.accent1 }}
-          />
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <XAxis dataKey="date" stroke="#ccc" />
+          <YAxis stroke="#82ca9d" />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="tr1Voltage" stroke="#82ca9d" dot={false} name="TR1 Voltage" />
+          <Line type="monotone" dataKey="tr2Voltage" stroke="#00C49F" dot={false} name="TR2 Voltage" />
         </LineChart>
       </ResponsiveContainer>
-    </DashboardCard>
+    </div>
   );
 };
 
-export const CurrentChart = () => {
-  const data = getTransformerCurrents();
-
+// ✅ 2. Transformer Current Chart
+export const TransformerCurrentChart = () => {
+  const data = usePowerData();
   return (
-    <DashboardCard
-      title="Current Analysis"
-      description="Daily current measurements in amperes"
-      fullHeight
-    >
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Transformer Current Over Time
+      </h3>
       <ResponsiveContainer width="100%" height={300}>
-        <AreaChart
-          data={data}
-          margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-        >
-          <defs>
-            <linearGradient id="colorTr1Current" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8}/>  {/* Blue */}
-              <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
-            </linearGradient>
-            <linearGradient id="colorTr2Current" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#EF4444" stopOpacity={0.8}/>  {/* Red */}
-              <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-          <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }} 
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            angle={-45}
-            textAnchor="end"
-            height={60}
-          />
-          <YAxis
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ paddingTop: 15 }} />
-          <Area
-            type="monotone"
-            dataKey="tr1Current"
-            name="TR-1 Current (A)"
-            stroke="#3B82F6"  
-            fill="url(#colorTr1Current)"
-            strokeWidth={2}
-          />
-          <Area
-            type="monotone"
-            dataKey="tr2Current"
-            name="TR-2 Current (A)"
-            stroke="#EF4444"  
-            fill="url(#colorTr2Current)"
-            strokeWidth={2}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
-    </DashboardCard>
-  );
-};
-
-export const KWHChart = () => {
-  const data = getTRKwhData();
-
-  return (
-    <DashboardCard 
-      title="TR-1 KWH and TR-2 KWH" 
-      description="Historical energy consumption in kilowatt-hours"
-      fullHeight
-    >
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart
-          data={data}
-          margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-          <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }} 
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-          />
-          <YAxis
-            domain={[0, 12000000]}
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tick={{ fontSize: 12 }}
-            tickFormatter={(value) => `${(value / 1000000).toFixed(1)}M`}
-          />
-          <Tooltip 
-            content={<CustomTooltip />}
-            formatter={(value) => [`${(value / 1000000).toFixed(2)}M`, 'KWH']}
-          />
-          <Legend wrapperStyle={{ paddingTop: 15 }} />
-          <Line 
-            type="monotone" 
-            dataKey="tr1KWH" 
-            name="TR-1 KWH" 
-            stroke="#3B82F6" 
-            strokeWidth={2}
-            dot={{ stroke: '#3B82F6', strokeWidth: 2, r: 4, fill: 'rgba(0,0,0,0.3)' }}
-            activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#3B82F6' }}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="tr2KWH" 
-            name="TR-2 KWH" 
-            stroke="#EF4444" 
-            strokeWidth={2}
-            dot={{ stroke: '#EF4444', strokeWidth: 2, r: 4, fill: 'rgba(0,0,0,0.3)' }}
-            activeDot={{ r: 6, stroke: '#EF4444', strokeWidth: 2, fill: '#EF4444' }}
-          />
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <XAxis dataKey="date" stroke="#ccc" />
+          <YAxis stroke="#FF7300" />
+          <Tooltip />
+          <Legend />
+          <Line type="monotone" dataKey="tr1Current" stroke="#FF7300" dot={false} name="TR1 Current" />
+          <Line type="monotone" dataKey="tr2Current" stroke="#FF4C4C" dot={false} name="TR2 Current" />
         </LineChart>
       </ResponsiveContainer>
-    </DashboardCard>
+    </div>
   );
 };
 
-
-export const ConsumptionChart = () => {
-  const data = getDailyConsumption().filter(item => item.value !== null);
-
+// ✅ 3. Transformer Load Comparison
+export const TransformerLoadChart = () => {
+  const data = usePowerData();
   return (
-    <DashboardCard
-      title="Daily Energy Consumption"
-      description="Total units consumed per day"
-      fullHeight
-    >
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Transformer Load Comparison (TR1 vs TR2)
+      </h3>
       <ResponsiveContainer width="100%" height={300}>
-        <BarChart
-          data={data}
-          margin={{ top: 10, right: 10, left: 0, bottom: 30 }}
-        >
-          <defs>
-            <linearGradient id="consumptionGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor={colors.primary} stopOpacity={0.8}/>
-              <stop offset="95%" stopColor={colors.primary} stopOpacity={0.1}/>
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-          <XAxis 
-            dataKey="date" 
-            tick={{ fontSize: 12 }} 
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            angle={-45}
-            textAnchor="end"
-            height={60}
-          />
-          <YAxis
-            axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip content={<CustomTooltip />} />
-          <Bar 
-            dataKey="value" 
-            name="Consumption (kWh)" 
-            fill="url(#consumptionGradient)" 
-            radius={[4, 4, 0, 0]}
-          />
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <XAxis dataKey="date" stroke="#ccc" />
+          <YAxis stroke="#ccc" />
+          <Tooltip />
+          <Legend />
+          <Bar dataKey="tr1Power" fill="#8884d8" name="TR1 Power" />
+          <Bar dataKey="tr2Power" fill="#00C49F" name="TR2 Power" />
         </BarChart>
       </ResponsiveContainer>
-    </DashboardCard>
+    </div>
   );
 };
 
-export const ConsumptionByAreaChart = () => {
-  const data = getConsumptionByArea();
-  // Updated with more vibrant colors
-  const COLORS = [
-    '#3B82F6', // Bright blue
-    '#EF4444', // Bright red
-    '#F59E0B', // Amber/orange
-    '#10B981', // Emerald green
-    '#8B5CF6', // Purple
-    '#EC4899'  // Pink
-  ];
+// ✅ 4. Total Units Consumed
+export const TotalConsumptionChart = () => {
+  const data = usePowerData();
+  return (
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Total Units Consumed Over Time
+      </h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart data={data}>
+          <defs>
+            <linearGradient id="colorUnits" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8} />
+              <stop offset="95%" stopColor="#8884d8" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <XAxis dataKey="date" stroke="#ccc" />
+          <YAxis stroke="#ccc" />
+          <Tooltip />
+          <Area type="monotone" dataKey="totalUnitConsumed" stroke="#8884d8" fillOpacity={1} fill="url(#colorUnits)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// ✅ 5. Temperature vs Total Units
+export const TemperatureVsConsumptionChart = () => {
+  const data = usePowerData();
+  return (
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Temperature vs Total Units
+      </h3>
+      <ResponsiveContainer width="100%" height={300}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#555" />
+          <XAxis dataKey="date" stroke="#ccc" />
+          <YAxis yAxisId="left" stroke="#8884d8" />
+          <YAxis yAxisId="right" orientation="right" stroke="#FF4C4C" />
+          <Tooltip />
+          <Legend />
+          <Line yAxisId="left" type="monotone" dataKey="totalUnitConsumed" stroke="#8884d8" name="Total Units" />
+          <Line yAxisId="right" type="monotone" dataKey="temperature" stroke="#FF4C4C" name="Temperature" />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// ✅ 6. Area-wise Power Consumption
+export const AreaWiseConsumptionChart = () => {
+  const data = usePowerData();
+
+  const aggregatedAreas = {};
+  data.forEach((reading) => {
+    reading.areas.forEach((a) => {
+      if (!aggregatedAreas[a.name]) {
+        aggregatedAreas[a.name] = 0;
+      }
+      aggregatedAreas[a.name] += a.value;
+    });
+  });
+
+  const chartData = Object.entries(aggregatedAreas).map(([name, value]) => ({
+    name,
+    value,
+  }));
 
   return (
-    <DashboardCard
-      title="Consumption by Area"
-      description="Distribution of energy consumption across areas"
-      fullHeight
-    >
-      <ResponsiveContainer width="100%" height={300}>
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            labelLine={false}
-            outerRadius={100}
-            fill="#8884d8"
-            dataKey="value"
-            nameKey="name"
-            label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-          >
-            {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-            ))}
-          </Pie>
-          <Tooltip content={<CustomTooltip />} />
-          <Legend />
-        </PieChart>
-      </ResponsiveContainer>
-    </DashboardCard>
+    <div className="bg-[#2A2827] p-4 rounded-lg shadow">
+      <h3 className="text-lg font-semibold mb-2 text-white">
+        Area-wise Power Consumption (Total)
+      </h3>
+      {chartData.length > 0 ? (
+        <ResponsiveContainer width="100%" height={350}>
+          <PieChart>
+            <Pie data={chartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} labelLine={false}>
+              {chartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value, name) => [`${value.toLocaleString()} kWh`, name]}
+              contentStyle={{
+                backgroundColor: "#2A2827",
+                border: "1px solid #555",
+                borderRadius: "5px",
+              }}
+              itemStyle={{ color: "#F5FBFE", fontWeight: "bold" }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+      ) : (
+        <p className="text-gray-400">No area-wise data available</p>
+      )}
+    </div>
   );
 };
-
-
-
-  export const TR1SupplyChart = () => {
-    const data = getTR1SupplyData();
-  
-    return (
-      <DashboardCard 
-        title="TR-1 Supply Chart" 
-        description="Historical power consumption by area (MWH)"
-        fullHeight
-      >
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart
-            data={data}
-            margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-            <XAxis 
-              dataKey="date" 
-              tick={{ fontSize: 12 }} 
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            />
-            <YAxis
-              domain={[0, 4000]}
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: 15 }} />
-            <Line type="monotone" dataKey="professorHouse" name="Professor House MWH" stroke="#4299E1" strokeWidth={2} />
-            <Line type="monotone" dataKey="csBuilding" name="CS Building MWH" stroke="#F56565" strokeWidth={2} />
-            <Line type="monotone" dataKey="lc1" name="LC-1 MWH" stroke="#ECC94B" strokeWidth={2} />
-            <Line type="monotone" dataKey="hostelNRoad" name="Hostel-N Road Side MWH" stroke="#48BB78" strokeWidth={2} />
-            <Line type="monotone" dataKey="rndSS" name="R&D SS MWH" stroke="#ED8936" strokeWidth={2} />
-            <Line type="monotone" dataKey="commonPanel" name="Common Panel MWH" stroke="#38B2AC" strokeWidth={2} />
-            <Line type="monotone" dataKey="wsPumpRoom" name="WS Pump Room KWH" stroke="#90CDF4" strokeWidth={2} />
-            <Line type="monotone" dataKey="dataCentre" name="Data Centre" stroke="#FC8181" strokeWidth={2} />
-            <Line type="monotone" dataKey="acHostelE" name="AC Hostel-E &G MWH" stroke="#F6E05E" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </DashboardCard>
-    );
-  };
-  
-  export const TR2SupplyChart = () => {
-    const data = getTR2SupplyData();
-  
-    return (
-      <DashboardCard 
-        title="TR-2 Supply Areas" 
-        description="Historical power consumption by area (MWH)"
-        fullHeight
-      >
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart
-            data={data}
-            margin={{ top: 10, right: 30, left: 0, bottom: 30 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
-            <XAxis 
-              dataKey="date" 
-              tick={{ fontSize: 12 }} 
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-            />
-            <YAxis
-              domain={[0, 3000]}
-              axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tickLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-              tick={{ fontSize: 12 }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend wrapperStyle={{ paddingTop: 15 }} />
-            <Line type="monotone" dataKey="lc2" name="LC-2 MWH" stroke="#4299E1" strokeWidth={2} />
-            <Line type="monotone" dataKey="chiller2" name="Chiller-2 MWH" stroke="#F56565" strokeWidth={2} />
-            <Line type="monotone" dataKey="chiller3" name="Chiller-3 MWH" stroke="#ECC94B" strokeWidth={2} />
-            <Line type="monotone" dataKey="firePumpRoom" name="Fire Pump Room KWH" stroke="#48BB78" strokeWidth={2} />
-            <Line type="monotone" dataKey="hostelNTAN" name="Hostel-N TAN Side MWH" stroke="#ED8936" strokeWidth={2} />
-            <Line type="monotone" dataKey="dispensary" name="Dispensary" stroke="#38B2AC" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </DashboardCard>
-    );
-  };
-  

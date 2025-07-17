@@ -4,26 +4,28 @@ import Area from '../models/area.js';
 import { Substation } from '../models/powerData.js';
 import mongoose from 'mongoose';
 
+// ✅ Existing submitPowerData (UNCHANGED)
 export const submitPowerData = async (req, res) => {
   try {
     const {
-      SNo,
       substation,
       totalUnitConsumed,
       temperature,
       dateOfReading,
       transformers,
-      areas
+      areas,
     } = req.body;
 
     if (
-      !SNo ||
       !substation ||
       !dateOfReading ||
-      !Array.isArray(transformers) || transformers.length === 0 ||
+      !Array.isArray(transformers) ||
+      transformers.length === 0 ||
       !Array.isArray(areas)
     ) {
-      return res.status(400).json({ error: 'Missing required fields or invalid data.' });
+      return res
+        .status(400)
+        .json({ error: 'Missing required fields or invalid data.' });
     }
 
     let substationDoc = await Substation.findOne({ name: substation });
@@ -32,63 +34,148 @@ export const submitPowerData = async (req, res) => {
         name: substation,
         location: 'Unknown',
         temperature: temperature || 0,
-        attendants: [] // Skip auto-linking for now
+        attendants: [],
       });
     }
-
     const substationId = substationDoc._id;
 
-    const mappedTransformers = await Promise.all(transformers.map(async (t) => {
-      let transformerDoc = await Transformer.findOne({ transformerId: t.transformerId, substation: substationId });
-
-      if (!transformerDoc) {
-        transformerDoc = await Transformer.create({
+    const mappedTransformers = await Promise.all(
+      transformers.map(async (t) => {
+        let transformerDoc = await Transformer.findOne({
           transformerId: t.transformerId,
-          substation: substationId
+          substation: substationId,
         });
-      }
 
-      return {
-        transformer: transformerDoc._id,
-        voltage: t.voltage,
-        current: t.current,
-        power: t.power
-      };
-    }));
+        if (!transformerDoc) {
+          transformerDoc = await Transformer.create({
+            transformerId: t.transformerId,
+            substation: substationId,
+          });
+        }
 
-    const mappedAreas = await Promise.all(areas.map(async (a) => {
-      let areaDoc = await Area.findOne({ name: a.name, substation: substationId });
+        return {
+          transformer: transformerDoc._id,
+          voltage: t.voltage,
+          current: t.current,
+          power: t.power, // ✅ manually entered kWh
+        };
+      })
+    );
 
-      if (!areaDoc) {
-        areaDoc = await Area.create({
+    const mappedAreas = await Promise.all(
+      areas.map(async (a) => {
+        let areaDoc = await Area.findOne({
           name: a.name,
-          substation: substationId
+          substation: substationId,
         });
-      }
 
-      return {
-        area: areaDoc._id,
-        power: a.power
-      };
-    }));
+        if (!areaDoc) {
+          areaDoc = await Area.create({
+            name: a.name,
+            substation: substationId,
+          });
+        }
+
+        return {
+          area: areaDoc._id,
+          power: a.power,
+        };
+      })
+    );
+
+    const latestEntry = await PowerData.findOne().sort({ SNo: -1 });
+    const nextSNo = latestEntry ? latestEntry.SNo + 1 : 1;
 
     const newEntry = new PowerData({
-      SNo,
+      SNo: nextSNo,
       substation: substationId,
       totalUnitConsumed,
       temperature,
       dateOfReading,
       transformers: mappedTransformers,
       areas: mappedAreas,
-      // Only add `submittedBy` if it exists
-      ...(req.attendant && { submittedBy: req.attendant._id })
+      ...(req.attendant && { submittedBy: req.attendant._id }),
     });
 
     await newEntry.save();
-    res.status(201).json({ message: 'Power data submitted successfully.', data: newEntry });
-
+    res
+      .status(201)
+      .json({ message: 'Power data submitted successfully.', data: newEntry });
   } catch (error) {
     console.error('Error submitting power data:', error.message);
     res.status(500).json({ error: error.message || 'Internal server error.' });
+  }
+};
+
+// ✅ Existing getAllPowerData (used for /charts - UNCHANGED)
+export const getAllPowerData = async (req, res) => {
+  try {
+    const data = await PowerData.find({})
+      .populate("transformers.transformer")
+      .populate("areas.area")
+      .populate("substation", "name")
+      .sort({ dateOfReading: 1 }); // ✅ Sort chronologically
+
+    const formatted = data.map((entry) => ({
+      date: entry.dateOfReading
+        ? new Date(entry.dateOfReading).toLocaleDateString("en-GB", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          })
+        : "N/A",
+      tr1Voltage: entry.transformers[0]?.voltage || 0,
+      tr1Current: entry.transformers[0]?.current || 0,
+      tr1Power: entry.transformers[0]?.power || 0,
+
+      tr2Voltage: entry.transformers[1]?.voltage || 0,
+      tr2Current: entry.transformers[1]?.current || 0,
+      tr2Power: entry.transformers[1]?.power || 0,
+
+      totalUnitConsumed: entry.totalUnitConsumed || 0,
+      temperature: entry.temperature || 0,
+
+      // ✅ Flattened area data for charts (PieChart ready)
+      areas: entry.areas.map((a) => ({
+        name: a.area?.name || "Unknown Area",
+        value: a.power || 0,
+      })),
+    }));
+
+    res.status(200).json(formatted);
+  } catch (error) {
+    console.error("Error fetching power data:", error.message);
+    res.status(500).json({ error: "Failed to fetch power data" });
+  }
+};
+
+// ✅ NEW: Get power data formatted for InfoTable
+// ✅ New /power/all - Flattened data for InfoTable
+export const getAllPowerDataFormatted = async (req, res) => {
+  try {
+    const data = await PowerData.find({})
+      .sort({ SNo: 1 }) // ✅ Ensures ordered by serial number
+      .populate("transformers.transformer")
+      .populate("areas.area")
+      .populate("substation", "name");
+
+    const formatted = data.map((entry) => ({
+      SNo: entry.SNo || 0, // ✅ Correct serial number now that it's updated
+      dateOfReading: entry.dateOfReading
+        ? new Date(entry.dateOfReading).toLocaleDateString("en-GB")
+        : "N/A",
+      tr1Voltage: entry.transformers[0]?.voltage || 0,
+      tr1Current: entry.transformers[0]?.current || 0,
+      tr1Power: entry.transformers[0]?.power || 0,
+      tr2Voltage: entry.transformers[1]?.voltage || 0,
+      tr2Current: entry.transformers[1]?.current || 0,
+      tr2Power: entry.transformers[1]?.power || 0,
+      totalUnitConsumed: entry.totalUnitConsumed || 0,
+    }));
+
+    res.status(200).json(formatted);
+  } catch (error) {
+    console.error("Error fetching formatted power data:", error.message);
+    res.status(500).json({ error: "Failed to fetch formatted power data" });
   }
 };

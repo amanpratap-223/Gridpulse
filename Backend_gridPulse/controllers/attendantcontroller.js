@@ -1,6 +1,7 @@
 // controllers/authController.js
 import Attendant from '../models/attendant.js';
 import jwt from 'jsonwebtoken';
+import { Substation } from "../models/powerData.js"; // ✅ To populate substation
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -51,5 +52,17 @@ export const login = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: 'Login failed', error: err.message });
+  }
+};
+export const getAllAttendants = async (req, res) => {
+  try {
+    const attendants = await Attendant.find({})
+      .populate("substation", "name location") // only fetch name & location
+      .select("name email substation status"); // fetch only needed fields
+
+    res.status(200).json(attendants);
+  } catch (error) {
+    console.error("Error fetching attendants:", error.message);
+    res.status(500).json({ error: "Failed to fetch attendants" });
   }
 };
