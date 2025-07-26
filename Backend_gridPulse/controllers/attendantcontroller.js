@@ -1,64 +1,77 @@
-// controllers/authController.js
-import Attendant from '../models/attendant.js';
+import User from '../models/attendant.js';
 import jwt from 'jsonwebtoken';
-import { Substation } from "../models/powerData.js"; // ✅ To populate substation
+import { Substation } from "../models/powerData.js";
 
 const generateToken = (user) => {
   return jwt.sign(
-    { id: user._id, email: user.email, substation: user.substation },
+    { id: user._id, email: user.email, substation: user.substation, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: '1d' }
   );
 };
 
+// ✅ Signup
 export const signup = async (req, res) => {
   const { name, email, password, substation } = req.body;
-
-  console.log("Received signup request:", req.body); 
+  console.log("📥 Signup request:", req.body);
 
   try {
-    const exists = await Attendant.findOne({ email });
+    const exists = await User.findOne({ email });
     if (exists) {
-      console.log("User already exists:", email); // show why 400 is triggered
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ message: "User already exists" });
     }
 
-    const attendant = await Attendant.create({ name, email, password, substation });
-    const token = generateToken(attendant);
+    const user = await User.create({
+      name,
+      email,
+      password,
+      role: "attendant",
+      substation: substation || null
+    });
 
-    return res.status(201).json({
+    const token = jwt.sign(
+      { id: user._id, email: user.email, substation: user.substation },
+      process.env.JWT_SECRET,
+      { expiresIn: "1d" }
+    );
+
+    res.status(201).json({
       token,
-      attendant: { id: attendant._id, name, email, substation }
+      user: { id: user._id, name, email, role: user.role, substation: user.substation }
     });
   } catch (err) {
-    console.error('Signup failed:', err); // ✅ catch internal issues
-    res.status(500).json({ message: 'Signup failed', error: err.message });
+    console.error("❌ Signup failed:", err.message);
+    res.status(500).json({ message: "Signup failed", error: err.message });
   }
 };
 
 
+// ✅ Login
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const attendant = await Attendant.findOne({ email });
-    if (!attendant || !(await attendant.matchPassword(password)))
+    const user = await User.findOne({ email });
+    if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({ message: 'Invalid credentials' });
+    }
 
-    const token = generateToken(attendant);
+    const token = generateToken(user);
     res.json({
       token,
-      attendant: { id: attendant._id, name: attendant.name, email: attendant.email, substation: attendant.substation }
+      user: { id: user._id, name: user.name, email: user.email, role: user.role, substation: user.substation }
     });
   } catch (err) {
     res.status(500).json({ message: 'Login failed', error: err.message });
   }
 };
+
+// ✅ Get All Attendants (Managers only later)
 export const getAllAttendants = async (req, res) => {
   try {
-    const attendants = await Attendant.find({})
-      .populate("substation", "name location") // only fetch name & location
-      .select("name email substation status"); // fetch only needed fields
+    const attendants = await User.find({ role: "attendant" })
+      .populate("substation", "name location")
+      .select("name email substation role");
 
     res.status(200).json(attendants);
   } catch (error) {

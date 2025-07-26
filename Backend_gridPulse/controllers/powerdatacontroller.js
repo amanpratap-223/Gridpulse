@@ -4,7 +4,7 @@ import Area from '../models/area.js';
 import { Substation } from '../models/powerData.js';
 import mongoose from 'mongoose';
 
-// ✅ Existing submitPowerData (UNCHANGED)
+// ✅ Submit Power Data
 export const submitPowerData = async (req, res) => {
   try {
     const {
@@ -57,7 +57,7 @@ export const submitPowerData = async (req, res) => {
           transformer: transformerDoc._id,
           voltage: t.voltage,
           current: t.current,
-          power: t.power, // ✅ manually entered kWh
+          power: t.power,
         };
       })
     );
@@ -94,7 +94,7 @@ export const submitPowerData = async (req, res) => {
       dateOfReading,
       transformers: mappedTransformers,
       areas: mappedAreas,
-      ...(req.attendant && { submittedBy: req.attendant._id }),
+      ...(req.user && { submittedBy: req.user._id }), // ✅ updated to new auth
     });
 
     await newEntry.save();
@@ -107,14 +107,18 @@ export const submitPowerData = async (req, res) => {
   }
 };
 
-// ✅ Existing getAllPowerData (used for /charts - UNCHANGED)
+// ✅ Get All Power Data (original logic restored)
 export const getAllPowerData = async (req, res) => {
   try {
-    const data = await PowerData.find({})
+    const { substationId } = req.query;
+
+    const query = substationId ? { substation: substationId } : {};
+
+    const data = await PowerData.find(query)
       .populate("transformers.transformer")
       .populate("areas.area")
       .populate("substation", "name")
-      .sort({ dateOfReading: 1 }); // ✅ Sort chronologically
+      .sort({ dateOfReading: 1 });
 
     const formatted = data.map((entry) => ({
       date: entry.dateOfReading
@@ -127,15 +131,11 @@ export const getAllPowerData = async (req, res) => {
       tr1Voltage: entry.transformers[0]?.voltage || 0,
       tr1Current: entry.transformers[0]?.current || 0,
       tr1Power: entry.transformers[0]?.power || 0,
-
       tr2Voltage: entry.transformers[1]?.voltage || 0,
       tr2Current: entry.transformers[1]?.current || 0,
       tr2Power: entry.transformers[1]?.power || 0,
-
       totalUnitConsumed: entry.totalUnitConsumed || 0,
       temperature: entry.temperature || 0,
-
-      // ✅ Flattened area data for charts (PieChart ready)
       areas: entry.areas.map((a) => ({
         name: a.area?.name || "Unknown Area",
         value: a.power || 0,
@@ -149,18 +149,18 @@ export const getAllPowerData = async (req, res) => {
   }
 };
 
-// ✅ NEW: Get power data formatted for InfoTable
-// ✅ New /power/all - Flattened data for InfoTable
+
+// ✅ Get All Power Data (InfoTable)
 export const getAllPowerDataFormatted = async (req, res) => {
   try {
     const data = await PowerData.find({})
-      .sort({ SNo: 1 }) // ✅ Ensures ordered by serial number
+      .sort({ SNo: 1 })
       .populate("transformers.transformer")
       .populate("areas.area")
       .populate("substation", "name");
 
     const formatted = data.map((entry) => ({
-      SNo: entry.SNo || 0, // ✅ Correct serial number now that it's updated
+      SNo: entry.SNo || 0,
       dateOfReading: entry.dateOfReading
         ? new Date(entry.dateOfReading).toLocaleDateString("en-GB")
         : "N/A",

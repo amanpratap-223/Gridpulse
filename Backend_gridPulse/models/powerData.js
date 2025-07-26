@@ -7,7 +7,7 @@ const substationSchema = new mongoose.Schema({
   temperature: { type: Number, required: true },
   attendants: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Attendant'
+    ref: 'User'
   }]
 });
 
@@ -29,7 +29,7 @@ const powerDataSchema = new mongoose.Schema({
   }],
   totalUnitConsumed: { type: Number },
   temperature: { type: Number },
-  submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Attendant" }
+  submittedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" }
 });
 
 export const PowerData = mongoose.model('PowerData', powerDataSchema);

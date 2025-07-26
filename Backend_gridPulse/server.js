@@ -8,6 +8,8 @@ import authRoutes from './routes/attendantroutes.js';
 
 //import managerRoutes from './routes/manageroutes.js';
 import dotenv from 'dotenv';
+import substationRoutes from "./routes/substationroutes.js";
+
 
 
 dotenv.config();
@@ -39,6 +41,7 @@ app.use(session({
 //app.use('/attendant', attendantRoutes);
 app.use('/power', powerDataRoutes);
 app.use('/attendant', authRoutes); // ✅ this is what makes /api/auth/signup work
+app.use("/substations", substationRoutes);//is se bs hum ek cheez kr re ke substation route bana diye, jise hum is route pe ja ke jese ek substation lyi data niklate the power ka, ab bs use substation id bhej denge taki us substation ka data aje specific
 
 //app.use('/manager', managerRoutes);
 

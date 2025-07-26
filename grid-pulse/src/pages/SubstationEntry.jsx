@@ -1,14 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
+import axios from "axios";
 import { MainNav } from "@/components/dashboard/Navbar";
-import {
-  Bell,
-  User,
-  Save,
-  MapPin,
-  Thermometer,
-  Calendar as ICalendar,
-  Clock,
-} from "lucide-react";
+import { Bell, User, Save, MapPin, Thermometer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -26,98 +19,89 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import "react-calendar/dist/Calendar.css";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-//import { substationFormSchema } from "../schemas/formSchema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { cn } from "@/lib/utils";
-import { format } from "date-fns";
-import logo from "../assets/images/image.png";
-// import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-// import { DayPicker } from "react-day-picker";
-import Calendar from "react-calendar";
+import { z } from "zod";
+
+
+
+export const substationFormSchema = z.object({
+  name: z
+    .union([z.string(), z.number()])
+    .transform((val) => String(val)) // ✅ converts numbers to string for backend compatibility
+    .refine((val) => val.trim().length > 0, "Substation name is required"),
+
+  location: z
+    .string()
+    .min(2, "Location is required")
+    .max(100, "Location name too long"),
+
+  temperature: z
+    .coerce
+    .number() // ✅ converts "32" (string from input) into 32 (number)
+    .nonnegative("Temperature cannot be negative")
+    .optional(),
+});
+
 
 const SubstationEntry = () => {
-  const [showCalendar, setShowCalendar] = useState(false);
   const form = useForm({
     resolver: zodResolver(substationFormSchema),
+    defaultValues: {
+      name: "",
+      location: "",
+      temperature: 0,
+    },
   });
 
-  const [date, setDate] = useState(null);
-
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [fetchingTemperature, setFetchingTemperature] = useState(false);
+
   const onSubmit = async (data) => {
     setIsSubmitting(true);
     try {
-      console.log("Form data submitted:", data);
+      const token = localStorage.getItem("token");
+      const response = await axios.post(
+        "http://localhost:3000/substations",
+        {
+          name: data.name,
+          location: data.location,
+          temperature: Number(data.temperature) || 0,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-      toast.success("Substation data submitted successfully", {
-        description: `${data.substation} has been saved`,
+      toast.success("Substation created successfully", {
+        description: `${response.data.substation.name} has been added`,
       });
 
-      form.reset({
-        substationId: `SUB-${Math.floor(Math.random() * 10000)
-          .toString()
-          .padStart(4, "0")}`,
-        substation: "",
-        location: "",
-        temperature: 0,
-        Date: new Date(),
-        Time: new Date().toTimeString().slice(0, 5),
-      });
+      form.reset();
     } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Failed to submit substation data");
+      console.error("Error creating substation:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to create substation"
+      );
     } finally {
       setIsSubmitting(false);
     }
   };
-  const watchLocation = form.watch("location");
 
-  useEffect(() => {
-    // Only fetch temperature if location is provided and has at least 3 characters
-    if (watchLocation && watchLocation.length >= 3) {
-      setFetchingTemperature(true);
-      const timer = setTimeout(async () => {
-        try {
-          const temp = await fetchTemperatureForLocation(watchLocation);
-          form.setValue("temperature", temp);
-        } catch (error) {
-          console.error("Error fetching temperature:", error);
-          toast.error("Failed to fetch temperature");
-        } finally {
-          setFetchingTemperature(false);
-        }
-      }, 800); // Debounce the API call
-
-      return () => clearTimeout(timer);
-    }
-  }, [watchLocation, form]);
   return (
     <div className="w-full min-h-screen bg-[#272522] text-[#F5FBFE] flex">
       <MainNav />
 
-      {/* Main content */}
       <div className="flex-1 pl-0 md:pl-72 transition-all duration-300">
         {/* Header */}
         <header className="sticky top-0 z-30 grid-pulse-glass backdrop-blur-md border-b border-border/40 px-6 py-3">
           <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-4">
-              <div className="md:hidden">
-                
-              </div>
-              <h1 className="text-xl font-semibold hidden md:block">
-                Substation Entry
-              </h1>
-            </div>
-
+            <h1 className="text-xl font-semibold hidden md:block">
+              Substation Entry
+            </h1>
             <div className="flex items-center gap-2">
               <TooltipProvider>
                 <Tooltip>
@@ -132,7 +116,6 @@ const SubstationEntry = () => {
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-
               <Button
                 variant="ghost"
                 size="icon"
@@ -147,7 +130,7 @@ const SubstationEntry = () => {
         {/* Form Content */}
         <main className="px-6 py-8 pb-20 animate-fade-in">
           <Card className="grid-pulse-card max-w-2xl mx-auto border-none">
-            <CardHeader className="">
+            <CardHeader>
               <CardTitle className="text-xl">Add New Substation</CardTitle>
             </CardHeader>
             <CardContent className="pt-6">
@@ -156,194 +139,76 @@ const SubstationEntry = () => {
                   onSubmit={form.handleSubmit(onSubmit)}
                   className="space-y-6"
                 >
-                  {/* Substation Details Section */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="substationId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Substation ID</FormLabel>
-                            <FormControl>
+                  {/* Name & Location */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Substation Name *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Enter substation name"
+                              {...field}
+                              className="bg-[#201E1D] h-10 rounded-md px-3 py-2 focus-visible:ring-2 focus-visible:ring-[#5EC9ED] border-none"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="location"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Location *</FormLabel>
+                          <FormControl>
+                            <div className="relative">
                               <Input
-                                readOnly
+                                placeholder="Enter location"
                                 {...field}
-                                className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED]"
+                                className="bg-[#201E1D] h-10 rounded-md px-3 py-2 focus-visible:ring-2 focus-visible:ring-[#5EC9ED] border-none pl-10"
                               />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="substation"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Substation Name *</FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Enter substation name"
-                                {...field}
-                                className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED]"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                              <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F5FBFE]/70" />
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
 
-                  {/* Location and Temperature Section */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="location"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Location *</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Input
-                                  placeholder="Enter location"
-                                  {...field}
-                                  className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED] pl-10"
-                                />
-                                <MapPin
-                                  className="absolute left-3 top-1/2 transform 
-                                -translate-y-1/2 h-4 w-4 text-[#F5FBFE]/70"
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="temperature"
-                        render={({ field: { onChange, ...rest } }) => (
-                          <FormItem>
-                            <FormLabel>Temperature (°C)</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Input
-                                  type="number"
-                                  readOnly
-                                  className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED] pl-10"
-                                  {...rest}
-                                  value={
-                                    fetchingTemperature
-                                      ? "Fetching..."
-                                      : rest.value
-                                  }
-                                />
-                                <Thermometer
-                                  className="absolute left-3 top-1/2
-                                 transform -translate-y-1/2 h-4 w-4 text-[#F5FBFE]/70"
-                                />
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
+                  {/* Temperature */}
+                  <FormField
+                    control={form.control}
+                    name="temperature"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Temperature (°C)</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              placeholder="Optional"
+                              {...field}
+                              className="bg-[#201E1D] h-10 rounded-md px-3 py-2 focus-visible:ring-2 focus-visible:ring-[#5EC9ED] border-none pl-10"
+                            />
+                            <Thermometer className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-[#F5FBFE]/70" />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                  {/* Date and Time Section */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="Date"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>Date</FormLabel>
-                            <Popover className="border-none rounded-md">
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant={"outline"}
-                                //   className={cn(
-                                //     "w-[240px] justify-start text-left font-normal",
-                                //     !field.value && "text-muted-foreground"
-                                //   )}
-                                  className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED] w-[240px] justify-start text-left font-normal hover:bg-[#5EC9ED]"
-                                >
-                                  <ICalendar />
-                                  {field.value  ? (
-                                    format(field.value , "PPP")
-                                  ) : (
-                                    <span>Pick a date</span>
-                                  )}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent
-                                className="w-auto p-0"
-                                align="start"
-                              >
-                                <Calendar
-                                //   selected={field.value}
-                                //   onSelect={field.onChange}
-                             
-                                
-                                  initialFocus
-                                  value={field.value}
-                                  onChange={field.onChange}  
-                                  className="rounded-md"
-                                />
-                              </PopoverContent>
-                            </Popover>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="Time"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Time</FormLabel>
-                            <FormControl>
-                              <div className="relative">
-                                <Input
-                                  type="time"
-                                  {...field}
-                                  className="bg-[#201E1D] flex h-10 rounded-md  px-3 py-2
-                                  focus-visible:outline-none focus-visible:ring-2 border-none
-                                   focus-visible:ring-[#5EC9ED]"
-                                   style={{
-                                     colorScheme: "dark",
-                                   }}
-                                />
-                                {/* <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-primary/70" /> */}
-                              </div>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
+                  {/* Submit Button */}
                   <div className="flex justify-end pt-4">
                     <Button
                       type="submit"
                       className="flex items-center gap-2"
-                      disabled={isSubmitting || fetchingTemperature}
+                      disabled={isSubmitting}
                     >
                       <Save size={18} />
                       {isSubmitting ? "Saving..." : "Save Substation"}
@@ -357,14 +222,9 @@ const SubstationEntry = () => {
 
         {/* Footer */}
         <footer className="py-6 px-6 border-t border-border/40">
-          <div className="container mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-center">
-              
-              <p className="text-sm text-muted-foreground mt-4 md:mt-0">
-                © 2024 Grid Pulse. All rights reserved.
-              </p>
-            </div>
-          </div>
+          <p className="text-sm text-muted-foreground text-center md:text-left">
+            © 2024 Grid Pulse. All rights reserved.
+          </p>
         </footer>
       </div>
     </div>
