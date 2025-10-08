@@ -1,5 +1,5 @@
 
-/*import Attendant from '../models/attendant.js';
+import Attendant from '../models/attendant.js';
 import { fetchTemperature } from '../utils/temperature.js';
 import substation from '../models/substation.js';
 
@@ -41,4 +41,3 @@ export const createSubstation = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
-*/

@@ -1,24 +1,36 @@
-import User from '../models/attendant.js';
-import jwt from 'jsonwebtoken';
-import { Substation } from "../models/powerData.js";
 
-const generateToken = (user) => {
-  return jwt.sign(
-    { id: user._id, email: user.email, substation: user.substation, role: user.role },
+
+// controllers/attendantcontroller.js
+import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import User from "../models/attendant.js";
+
+// Helper to create JWT
+const generateToken = (user) =>
+  jwt.sign(
+    { id: user._id, email: user.email, role: user.role, substation: user.substation },
     process.env.JWT_SECRET,
-    { expiresIn: '1d' }
+    { expiresIn: "1d" }
   );
-};
 
-// ✅ Signup
+// ✅ SIGNUP
 export const signup = async (req, res) => {
-  const { name, email, password, substation } = req.body;
-  console.log("📥 Signup request:", req.body);
-
   try {
+    let { name, email, password, substation } = req.body;
+    email = (email || "").toLowerCase();
+
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: "Name, email and password are required" });
+    }
+
+    // If substation is not a valid ObjectId (e.g., "0", "", undefined), store null
+    if (!mongoose.isValidObjectId(substation)) {
+      substation = null;
+    }
+
     const exists = await User.findOne({ email });
     if (exists) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(409).json({ message: "Email already exists" });
     }
 
     const user = await User.create({
@@ -26,56 +38,73 @@ export const signup = async (req, res) => {
       email,
       password,
       role: "attendant",
-      substation: substation || null
+      substation, // valid ObjectId or null
     });
 
-    const token = jwt.sign(
-      { id: user._id, email: user.email, substation: user.substation },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
+    const token = generateToken(user);
 
-    res.status(201).json({
+    return res.status(201).json({
       token,
-      user: { id: user._id, name, email, role: user.role, substation: user.substation }
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        substation: user.substation,
+      },
     });
   } catch (err) {
-    console.error("❌ Signup failed:", err.message);
-    res.status(500).json({ message: "Signup failed", error: err.message });
+    console.error("❌ Signup failed:", err);
+    // Duplicate key safety
+    if (err?.code === 11000) {
+      return res.status(409).json({ message: "Email already exists" });
+    }
+    return res.status(500).json({ message: "Signup failed", error: err.message });
   }
 };
 
-
-// ✅ Login
+// ✅ LOGIN
 export const login = async (req, res) => {
-  const { email, password } = req.body;
-
   try {
+    let { email, password } = req.body;
+    email = (email || "").toLowerCase();
+
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
+
     const user = await User.findOne({ email });
     if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ message: "Invalid credentials" });
     }
 
     const token = generateToken(user);
-    res.json({
+
+    return res.json({
       token,
-      user: { id: user._id, name: user.name, email: user.email, role: user.role, substation: user.substation }
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        substation: user.substation,
+      },
     });
   } catch (err) {
-    res.status(500).json({ message: 'Login failed', error: err.message });
+    console.error("❌ Login failed:", err);
+    return res.status(500).json({ message: "Login failed", error: err.message });
   }
 };
 
-// ✅ Get All Attendants (Managers only later)
+// ✅ GET ALL ATTENDANTS (protected; typically for managers)
 export const getAllAttendants = async (req, res) => {
   try {
     const attendants = await User.find({ role: "attendant" })
       .populate("substation", "name location")
-      .select("name email substation role");
-
-    res.status(200).json(attendants);
-  } catch (error) {
-    console.error("Error fetching attendants:", error.message);
-    res.status(500).json({ error: "Failed to fetch attendants" });
+      .select("name email role substation");
+    return res.status(200).json(attendants);
+  } catch (err) {
+    console.error("❌ Error fetching attendants:", err);
+    return res.status(500).json({ error: "Failed to fetch attendants" });
   }
 };
